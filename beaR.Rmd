@@ -1,0 +1,208 @@
+---
+title: "bea.R"
+author: "Matt Colantonio"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+toc_depth: 3
+---
+
+This markdown is a template for interacting with the Bureau of Economic Analysis (BEA) API via the bea.R function. Specifically, I want to obtain data specific to certain counties to facilitate a regional economic and industry analysis.
+
+## Setup
+
+```{r message=FALSE, warning=FALSE}
+# this code clears the environment and installs/loads popular packages
+
+rm(list = ls()) 
+  gc()            
+  cat("\f")  
+packages <- c("readr", #open csv
+              "psych", # quick summary stats for data exploration,
+              "stargazer", #summary stats for sharing,
+              "tidyverse", # data manipulation like selecting variables,
+              "corrplot", # correlation plots
+              "ggplot2", # graphing
+              "ggcorrplot", # correlation plot
+              "gridExtra", #overlay plots
+              "data.table", # reshape for graphing 
+              "car", #vif
+              "prettydoc", # html output
+              "visdat", # visualize missing variables
+              "glmnet", # lasso/ridge
+              "caret", # confusion matrix
+              "MASS", #step AIC
+              "plm", # fixed effects demeaned regression
+              "lmtest", # test regression coefficients
+              "fpp3", # Foprecasting: Principles & Practice supplement
+              "tsibble", 
+              "tsibbledata",
+              "lubridate",
+              "forecast", # time sereis forecasting
+              "bea.R" # interact with BEA APISs
+)
+
+for (i in 1:length(packages)) {
+  if (!packages[i] %in% rownames(installed.packages())) {
+    install.packages(packages[i]
+                     , repos = "http://cran.rstudio.com/"
+                     , dependencies = TRUE
+    )
+  }
+  library(packages[i], character.only = TRUE)
+}
+
+rm(packages)
+```
+
+```{r include=FALSE}
+setwd("/Users/matthewcolantonio/Documents/r/")
+```
+
+First, create object with API key.
+
+```{r include=FALSE}
+beaKey <-  "D84279EC-396F-4A6F-BE18-D9279CD3B1B0"
+```
+
+What can we work with using the BEA API?
+
+```{r message=FALSE, warning=FALSE}
+beaSets(beaKey = beaKey)
+```
+
+## What type of data?
+
+### County List
+
+I want to obtain County Economic Profile Data (CAINC30) from the BEA site for Appalachian counties. First, I am going to create objects for each state that includes its Appalachian Counties. There are over 300 counties so this will be a lot of 'code' but it is much faster to do this one time in R than manually extract using tables downloaded directly from bea.org.
+
+```{r}
+appalachia <- list(
+  "Alabama" = c("Bibb, AL", "Blount, AL", "Calhoun, AL", "Chambers, AL", "Cherokee, AL", "Chilton, AL", "Clay, AL", "Cleburne, AL", "Colbert, AL", "Coosa, AL", "Cullman, AL", "DeKalb, AL", "Elmore, AL", "Etowah, AL", "Fayette, AL", "Franklin, AL", "Hale, AL", "Jackson, AL", "Jefferson, AL", "Lamar, AL", "Lauderdale, AL", "Lawrence, AL", "Limestone, AL", "Macon, AL", "Madison, AL", "Marion, AL", "Marshall, AL", "Morgan, AL", "Pickens, AL", "Randolph, AL", "St. Clair, AL", "Shelby, AL", "Talladega, AL", "Tallapoosa, AL", "Tuscaloosa, AL", "Walker, AL", "Winston, AL"),
+  "Georgia" = c("Banks, GA", "Barrow, GA", "Bartow, GA", "Carroll, GA", "Catoosa, GA", "Chattooga, GA", "Cherokee, GA", "Dade, GA", "Dawson, GA", "Douglas, GA", "Elbert, GA", "Fannin, GA", "Floyd, GA", "Forsyth, GA", "Franklin, GA", "Gilmer, GA", "Gordon, GA", "Gwinnett, GA", "Habersham, GA", "Hall, GA", "Haralson, GA", "Hart, GA", "Heard, GA", "Jackson, GA", "Lumpkin, GA", "Madison, GA", "Murray, GA", "Paulding, GA", "Pickens, GA", "Polk, GA", "Rabun, GA", "Stephens, GA", "Towns, GA", "Union, GA", "Walker, GA", "White, GA", "Whitfield, GA"),
+  "Kentucky" = c("Adair, KY", "Bath, KY", "Bell, KY", "Boyd, KY", "Breathitt, KY", "Carter, KY", "Casey, KY", "Clark, KY", "Clay, KY", "Clinton, KY", "Cumberland, KY", "Edmonson, KY", "Elliott, KY", "Estill, KY", "Fleming, KY", "Floyd, KY", "Garrard, KY", "Green, KY", "Greenup, KY", "Harlan, KY", "Hart, KY", "Jackson, KY", "Johnson, KY", "Knott, KY", "Knox, KY", "Laurel, KY", "Lawrence, KY", "Lee, KY", "Leslie, KY", "Letcher, KY", "Lewis, KY", "Lincoln, KY", "McCreary, KY", "Madison, KY", "Magoffin, KY", "Martin, KY", "Menifee, KY", "Metcalfe, KY", "Monroe, KY", "Montgomery, KY", "Morgan, KY", "Nicholas, KY", "Owsley, KY", "Perry, KY", "Pike, KY", "Powell, KY", "Pulaski, KY", "Robertson, KY", "Rockcastle, KY", "Rowan, KY", "Russell, KY", "Wayne, KY", "Whitley, KY", "Wolfe, KY"),
+  "Maryland" = c("Allegany, MD", "Garrett, MD", "Washington, MD"),
+  "Mississippi" = c("Alcorn, MS", "Benton, MS", "Calhoun, MS", "Chickasaw, MS", "Choctaw, MS", "Clay, MS", "Itawamba, MS", "Kemper, MS", "Lee, MS", "Lowndes, MS", "Marshall, MS", "Monroe, MS", "Montgomery, MS", "Noxubee, MS", "Oktibbeha, MS", "Panola, MS", "Pontotoc, MS", "Prentiss, MS", "Tippah, MS", "Tishomingo, MS", "Union, MS", "Webster, MS", "Winston, MS", "Yalobusha, MS"),
+  "New York" = c("Allegany, NY", "Broome, NY", "Cattaraugus, NY", "Chautauqua, NY", "Chemung, NY", "Chenango, NY", "Cortland, NY", "Delaware, NY", "Otsego, NY", "Schoharie, NY", "Schuyler, NY", "Steuben, NY", "Tioga, NY", "Tompkins, NY"),
+  "North Carolina" = c("Alexander, NC", "Alleghany, NC", "Ashe, NC", "Avery, NC", "Buncombe, NC", "Burke, NC", "Caldwell, NC", "Catawba, NC", "Cherokee, NC", "Clay, NC", "Cleveland, NC", "Davie, NC", "Forsyth, NC", "Graham, NC", "Haywood, NC", "Henderson, NC", "Jackson, NC", "McDowell, NC", "Macon, NC", "Madison, NC", "Mitchell, NC", "Polk, NC", "Rutherford, NC", "Stokes, NC", "Surry, NC", "Swain, NC", "Transylvania, NC", "Watauga, NC", "Wilkes, NC", "Yadkin, NC", "Yancey, NC"),
+  "Ohio" = c("Adams, OH", "Ashtabula, OH", "Athens, OH", "Belmont, OH", "Brown, OH", "Carroll, OH", "Clermont, OH", "Columbiana, OH", "Coshocton, OH", "Gallia, OH", "Guernsey, OH", "Harrison, OH", "Highland, OH", "Hocking, OH", "Holmes, OH", "Jackson, OH", "Jefferson, OH", "Lawrence, OH", "Mahoning, OH", "Meigs, OH", "Monroe, OH", "Morgan, OH", "Muskingum, OH", "Noble, OH", "Perry, OH", "Pike, OH", "Ross, OH", "Scioto, OH", "Trumbull, OH", "Tuscarawas, OH", "Vinton, OH", "Washington, OH"),
+  "Pennsylvania" = c("Allegheny, PA", "Armstrong, PA", "Beaver, PA", "Bedford, PA", "Blair, PA", "Bradford, PA", "Butler, PA", "Cambria, PA", "Cameron, PA", "Carbon, PA", "Centre, PA", "Clarion, PA", "Clearfield, PA", "Clinton, PA", "Columbia, PA", "Crawford, PA", "Elk, PA", "Erie, PA", "Fayette, PA", "Forest, PA", "Fulton, PA", "Greene, PA", "Huntingdon, PA", "Indiana, PA", "Jefferson, PA", "Juniata, PA", "Lackawanna, PA", "Lawrence, PA", "Luzerne, PA", "Lycoming, PA", "McKean, PA", "Mercer, PA", "Mifflin, PA", "Monroe, PA", "Montour, PA", "Northumberland, PA", "Perry, PA", "Pike, PA", "Potter, PA", "Schuylkill, PA", "Snyder, PA", "Somerset, PA", "Sullivan, PA", "Susquehanna, PA", "Tioga, PA", "Union, PA", "Venango, PA", "Warren, PA", "Washington, PA", "Wayne, PA", "Westmoreland, PA", "Wyoming, PA"),
+  "South Carolina" = c("Anderson, SC", "Cherokee, SC", "Greenville, SC", "Oconee, SC", "Pickens, SC", "Spartanburg, SC", "Union, SC"),
+  "Tennessee" = c("Anderson, TN", "Bledsoe, TN", "Blount, TN", "Bradley, TN", "Campbell, TN", "Cannon, TN", "Carter, TN", "Claiborne, TN", "Clay, TN", "Cocke, TN", "Coffee, TN", "Cumberland, TN", "DeKalb, TN", "Fentress, TN", "Franklin, TN", "Grainger, TN", "Greene, TN", "Grundy, TN", "Hamblen, TN", "Hamilton, TN", "Hancock, TN", "Hawkins, TN", "Jackson, TN", "Jefferson, TN", "Johnson, TN", "Knox, TN", "Lawrence, TN", "Lewis, TN", "Loudon, TN", "McMinn, TN", "Macon, TN", "Marion, TN", "Meigs, TN", "Monroe, TN", "Morgan, TN", "Overton, TN", "Pickett, TN", "Polk, TN", "Putnam, TN", "Rhea, TN", "Roane, TN", "Scott, TN", "Sequatchie, TN", "Sevier, TN", "Smith, TN", "Sullivan, TN", "Unicoi, TN", "Union, TN", "Van Buren, TN", "Warren, TN", "Washington, TN", "White, TN"),
+  "Virginia" = c("Alleghany, VA", "Bath, VA", "Bland, VA", "Botetourt, VA", "Buchanan, VA", "Carroll, VA", "Craig, VA", "Dickenson, VA", "Floyd, VA", "Giles, VA", "Grayson, VA", "Henry, VA", "Highland, VA", "Lee, VA", "Montgomery, VA", "Patrick, VA", "Pulaski, VA", "Rockbridge, VA", "Russell, VA", "Scott, VA", "Smyth, VA", "Tazewell, VA", "Washington, VA", "Wise, VA", "Wythe, VA"),
+  "Virginia Cities" = c("Bristol, VA", "Buena Vista, VA", "Covington, VA", "Galax, VA", "Lexington, VA", "Martinsville, VA", "Norton, VA", "Radford, VA"),
+  "West Virginia" = c("Barbour, WV", "Berkeley, WV", "Boone, WV", "Braxton, WV", "Brooke, WV", "Cabell, WV", "Calhoun, WV", "Clay, WV", "Doddridge, WV", "Fayette, WV", "Gilmer, WV", "Grant, WV", "Greenbrier, WV", "Hampshire, WV", "Hancock, WV", "Hardy, WV", "Harrison, WV", "Jackson, WV", "Jefferson, WV", "Kanawha, WV", "Lewis, WV", "Lincoln, WV", "Logan, WV", "Marion, WV", "Marshall, WV", "Mason, WV", "McDowell, WV", "Mercer, WV", "Mineral, WV", "Mingo, WV", "Monongalia, WV", "Monroe, WV", "Morgan, WV", "Nicholas, WV", "Ohio, WV", "Pendleton, WV", "Pleasants, WV", "Pocahontas, WV", "Preston, WV", "Putnam, WV", "Raleigh, WV", "Randolph, WV", "Ritchie, WV", "Roane, WV", "Summers, WV", "Taylor, WV", "Tucker, WV", "Tyler, WV", "Upshur, WV", "Wayne, WV", "Webster, WV", "Wetzel, WV", "Wirt, WV", "Wood, WV", "Wyoming, WV")
+)
+
+
+# List of years I want to have data for
+years <- 2001:2021
+```
+
+BEA includes state abbreviations in the County (GEOName) (e.g., 'Bibb, AL' instead of just 'Bibb').
+
+### LineCodes
+
+I want to explore the following variables on a County level by table, metric, and (LineCode):
+
+-   CAINC30 Economic Profile
+
+    -   Population (100)
+
+    -   Total Employment (240)
+
+    -   Personal Income (10)
+
+-   CAGDP9 Real GDP in Chained Dollars
+
+    -   All Industry Total (1)
+
+    -   Mining, quarrying, oil and gas extraction (6)
+
+    -   Natural resources and mining (87)
+
+-   CAINC6N Compensation of employees by NAICS Industry
+
+    -   Mining, quarrying, oil and gas extraction (200)
+
+        -   Oil and gas extraction (201)
+
+        -   Mining (except oil and gas) (202)
+
+        -   Support activities for mining (203)
+
+    -   Petroleum and coal products manufacturing (539)
+
+    -   Pipeline transportation (806)
+
+I already had these tables and LineCodes from the BEA site, but you can also use the following function to explore the specifics without going to bea.org directly. The first chunk shows how to search for tables based on a topic (spelling will matter).
+
+```{r message=FALSE, warning=FALSE}
+head(beaSearch("Population", beaKey = beaKey))
+```
+
+We can also find the LineCode, which will be necessary for actually creating datasets. I already have them, but another approach would be the following:
+
+```{r message=FALSE, warning=FALSE}
+linecode <- beaParamVals(beaKey = beaKey, "Regional", "LineCode")$ParamValue
+
+
+glimpse(linecode)
+
+# Ttable names are in Desc column
+# the Key is the LineCode
+
+```
+
+For LineCode for CAINC30 specifically:
+
+```{r}
+linecode %>% filter(str_detect(Desc, "CAINC30")) 
+# Filter using str_detect() and identify the linecodes
+```
+
+## Calling API and building dataset
+
+Now its time to make the API calls using beaGet.
+
+First, I want to create parameters and ultimately run through all the counties I specified earlier.
+
+Once we specify the list of data we want to retrieve in bea.R format, we can create a dataframe with the data.
+
+```{r}
+# trying it without my desired County parameters
+
+test <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAGDP9", 
+  "LineCode" = 1,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+TEST <- beaGet(test, asWide = FALSE)
+
+head(TEST, 3)
+```
+
+```{r}
+is_in_appalachia <- lapply(TEST$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+TEST2 <- TEST[unlist(is_in_appalachia), ]
+
+
+```
+
+TEST2 contains all County GDP for Appalachia in year 2021.
+
+```{r}
+head(TEST2, 5)
+```
