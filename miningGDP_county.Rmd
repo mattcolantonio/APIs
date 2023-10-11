@@ -1,0 +1,525 @@
+---
+title: "County Level Data for Appalachia"
+author: "Matt Colantonio"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+toc_depth: 3
+---
+
+```{r message=FALSE, warning=FALSE}
+# this code clears the environment and installs/loads popular packages
+
+rm(list = ls()) 
+  gc()            
+  cat("\f")  
+  
+packages <- c("readr", #open csv
+              "psych", # quick summary stats for data exploration,
+              "stargazer", #summary stats for sharing,
+              "tidyverse", # data manipulation like selecting variables,
+              "corrplot", # correlation plots
+              "ggplot2", # graphing
+              "ggcorrplot", # correlation plot
+              "gridExtra", #overlay plots
+              "data.table", # reshape for graphing 
+              "car", #vif
+              "prettydoc", # html output
+              "visdat", # visualize missing variables
+              "glmnet", # lasso/ridge
+              "caret", # confusion matrix
+              "MASS", #step AIC
+              "plm", # fixed effects demeaned regression
+              "lmtest", # test regression coefficients
+              "fpp3", # Foprecasting: Principles & Practice supplement
+              "tsibble", 
+              "tsibbledata",
+              "lubridate",
+              "forecast", # time sereis forecasting
+              "bea.R" # interact with BEA APISs
+)
+
+for (i in 1:length(packages)) {
+  if (!packages[i] %in% rownames(installed.packages())) {
+    install.packages(packages[i]
+                     , repos = "http://cran.rstudio.com/"
+                     , dependencies = TRUE
+    )
+  }
+  library(packages[i], character.only = TRUE)
+}
+
+rm(packages)
+```
+
+```{r}
+setwd("/Users/matthewcolantonio/Documents/Research/fracking/")
+```
+
+```{r}
+beaKey <-  "D84279EC-396F-4A6F-BE18-D9279CD3B1B0"
+```
+
+```{r}
+appalachia <- list(
+  "Alabama" = c("Bibb, AL", "Blount, AL", "Calhoun, AL", "Chambers, AL", "Cherokee, AL", "Chilton, AL", "Clay, AL", "Cleburne, AL", "Colbert, AL", "Coosa, AL", "Cullman, AL", "DeKalb, AL", "Elmore, AL", "Etowah, AL", "Fayette, AL", "Franklin, AL", "Hale, AL", "Jackson, AL", "Jefferson, AL", "Lamar, AL", "Lauderdale, AL", "Lawrence, AL", "Limestone, AL", "Macon, AL", "Madison, AL", "Marion, AL", "Marshall, AL", "Morgan, AL", "Pickens, AL", "Randolph, AL", "St. Clair, AL", "Shelby, AL", "Talladega, AL", "Tallapoosa, AL", "Tuscaloosa, AL", "Walker, AL", "Winston, AL"),
+  "Georgia" = c("Banks, GA", "Barrow, GA", "Bartow, GA", "Carroll, GA", "Catoosa, GA", "Chattooga, GA", "Cherokee, GA", "Dade, GA", "Dawson, GA", "Douglas, GA", "Elbert, GA", "Fannin, GA", "Floyd, GA", "Forsyth, GA", "Franklin, GA", "Gilmer, GA", "Gordon, GA", "Gwinnett, GA", "Habersham, GA", "Hall, GA", "Haralson, GA", "Hart, GA", "Heard, GA", "Jackson, GA", "Lumpkin, GA", "Madison, GA", "Murray, GA", "Paulding, GA", "Pickens, GA", "Polk, GA", "Rabun, GA", "Stephens, GA", "Towns, GA", "Union, GA", "Walker, GA", "White, GA", "Whitfield, GA"),
+  "Kentucky" = c("Adair, KY", "Bath, KY", "Bell, KY", "Boyd, KY", "Breathitt, KY", "Carter, KY", "Casey, KY", "Clark, KY", "Clay, KY", "Clinton, KY", "Cumberland, KY", "Edmonson, KY", "Elliott, KY", "Estill, KY", "Fleming, KY", "Floyd, KY", "Garrard, KY", "Green, KY", "Greenup, KY", "Harlan, KY", "Hart, KY", "Jackson, KY", "Johnson, KY", "Knott, KY", "Knox, KY", "Laurel, KY", "Lawrence, KY", "Lee, KY", "Leslie, KY", "Letcher, KY", "Lewis, KY", "Lincoln, KY", "McCreary, KY", "Madison, KY", "Magoffin, KY", "Martin, KY", "Menifee, KY", "Metcalfe, KY", "Monroe, KY", "Montgomery, KY", "Morgan, KY", "Nicholas, KY", "Owsley, KY", "Perry, KY", "Pike, KY", "Powell, KY", "Pulaski, KY", "Robertson, KY", "Rockcastle, KY", "Rowan, KY", "Russell, KY", "Wayne, KY", "Whitley, KY", "Wolfe, KY"),
+  "Maryland" = c("Allegany, MD", "Garrett, MD", "Washington, MD"),
+  "Mississippi" = c("Alcorn, MS", "Benton, MS", "Calhoun, MS", "Chickasaw, MS", "Choctaw, MS", "Clay, MS", "Itawamba, MS", "Kemper, MS", "Lee, MS", "Lowndes, MS", "Marshall, MS", "Monroe, MS", "Montgomery, MS", "Noxubee, MS", "Oktibbeha, MS", "Panola, MS", "Pontotoc, MS", "Prentiss, MS", "Tippah, MS", "Tishomingo, MS", "Union, MS", "Webster, MS", "Winston, MS", "Yalobusha, MS"),
+  "New York" = c("Allegany, NY", "Broome, NY", "Cattaraugus, NY", "Chautauqua, NY", "Chemung, NY", "Chenango, NY", "Cortland, NY", "Delaware, NY", "Otsego, NY", "Schoharie, NY", "Schuyler, NY", "Steuben, NY", "Tioga, NY", "Tompkins, NY"),
+  "North Carolina" = c("Alexander, NC", "Alleghany, NC", "Ashe, NC", "Avery, NC", "Buncombe, NC", "Burke, NC", "Caldwell, NC", "Catawba, NC", "Cherokee, NC", "Clay, NC", "Cleveland, NC", "Davie, NC", "Forsyth, NC", "Graham, NC", "Haywood, NC", "Henderson, NC", "Jackson, NC", "McDowell, NC", "Macon, NC", "Madison, NC", "Mitchell, NC", "Polk, NC", "Rutherford, NC", "Stokes, NC", "Surry, NC", "Swain, NC", "Transylvania, NC", "Watauga, NC", "Wilkes, NC", "Yadkin, NC", "Yancey, NC"),
+  "Ohio" = c("Adams, OH", "Ashtabula, OH", "Athens, OH", "Belmont, OH", "Brown, OH", "Carroll, OH", "Clermont, OH", "Columbiana, OH", "Coshocton, OH", "Gallia, OH", "Guernsey, OH", "Harrison, OH", "Highland, OH", "Hocking, OH", "Holmes, OH", "Jackson, OH", "Jefferson, OH", "Lawrence, OH", "Mahoning, OH", "Meigs, OH", "Monroe, OH", "Morgan, OH", "Muskingum, OH", "Noble, OH", "Perry, OH", "Pike, OH", "Ross, OH", "Scioto, OH", "Trumbull, OH", "Tuscarawas, OH", "Vinton, OH", "Washington, OH"),
+  "Pennsylvania" = c("Allegheny, PA", "Armstrong, PA", "Beaver, PA", "Bedford, PA", "Blair, PA", "Bradford, PA", "Butler, PA", "Cambria, PA", "Cameron, PA", "Carbon, PA", "Centre, PA", "Clarion, PA", "Clearfield, PA", "Clinton, PA", "Columbia, PA", "Crawford, PA", "Elk, PA", "Erie, PA", "Fayette, PA", "Forest, PA", "Fulton, PA", "Greene, PA", "Huntingdon, PA", "Indiana, PA", "Jefferson, PA", "Juniata, PA", "Lackawanna, PA", "Lawrence, PA", "Luzerne, PA", "Lycoming, PA", "McKean, PA", "Mercer, PA", "Mifflin, PA", "Monroe, PA", "Montour, PA", "Northumberland, PA", "Perry, PA", "Pike, PA", "Potter, PA", "Schuylkill, PA", "Snyder, PA", "Somerset, PA", "Sullivan, PA", "Susquehanna, PA", "Tioga, PA", "Union, PA", "Venango, PA", "Warren, PA", "Washington, PA", "Wayne, PA", "Westmoreland, PA", "Wyoming, PA"),
+  "South Carolina" = c("Anderson, SC", "Cherokee, SC", "Greenville, SC", "Oconee, SC", "Pickens, SC", "Spartanburg, SC", "Union, SC"),
+  "Tennessee" = c("Anderson, TN", "Bledsoe, TN", "Blount, TN", "Bradley, TN", "Campbell, TN", "Cannon, TN", "Carter, TN", "Claiborne, TN", "Clay, TN", "Cocke, TN", "Coffee, TN", "Cumberland, TN", "DeKalb, TN", "Fentress, TN", "Franklin, TN", "Grainger, TN", "Greene, TN", "Grundy, TN", "Hamblen, TN", "Hamilton, TN", "Hancock, TN", "Hawkins, TN", "Jackson, TN", "Jefferson, TN", "Johnson, TN", "Knox, TN", "Lawrence, TN", "Lewis, TN", "Loudon, TN", "McMinn, TN", "Macon, TN", "Marion, TN", "Meigs, TN", "Monroe, TN", "Morgan, TN", "Overton, TN", "Pickett, TN", "Polk, TN", "Putnam, TN", "Rhea, TN", "Roane, TN", "Scott, TN", "Sequatchie, TN", "Sevier, TN", "Smith, TN", "Sullivan, TN", "Unicoi, TN", "Union, TN", "Van Buren, TN", "Warren, TN", "Washington, TN", "White, TN"),
+  "Virginia" = c("Alleghany, VA", "Bath, VA", "Bland, VA", "Botetourt, VA", "Buchanan, VA", "Carroll, VA", "Craig, VA", "Dickenson, VA", "Floyd, VA", "Giles, VA", "Grayson, VA", "Henry, VA", "Highland, VA", "Lee, VA", "Montgomery, VA", "Patrick, VA", "Pulaski, VA", "Rockbridge, VA", "Russell, VA", "Scott, VA", "Smyth, VA", "Tazewell, VA", "Washington, VA", "Wise, VA", "Wythe, VA"),
+  "Virginia Cities" = c("Bristol, VA", "Buena Vista, VA", "Covington, VA", "Galax, VA", "Lexington, VA", "Martinsville, VA", "Norton, VA", "Radford, VA"),
+  "West Virginia" = c("Barbour, WV", "Berkeley, WV", "Boone, WV", "Braxton, WV", "Brooke, WV", "Cabell, WV", "Calhoun, WV", "Clay, WV", "Doddridge, WV", "Fayette, WV", "Gilmer, WV", "Grant, WV", "Greenbrier, WV", "Hampshire, WV", "Hancock, WV", "Hardy, WV", "Harrison, WV", "Jackson, WV", "Jefferson, WV", "Kanawha, WV", "Lewis, WV", "Lincoln, WV", "Logan, WV", "Marion, WV", "Marshall, WV", "Mason, WV", "McDowell, WV", "Mercer, WV", "Mineral, WV", "Mingo, WV", "Monongalia, WV", "Monroe, WV", "Morgan, WV", "Nicholas, WV", "Ohio, WV", "Pendleton, WV", "Pleasants, WV", "Pocahontas, WV", "Preston, WV", "Putnam, WV", "Raleigh, WV", "Randolph, WV", "Ritchie, WV", "Roane, WV", "Summers, WV", "Taylor, WV", "Tucker, WV", "Tyler, WV", "Upshur, WV", "Wayne, WV", "Webster, WV", "Wetzel, WV", "Wirt, WV", "Wood, WV", "Wyoming, WV")
+)
+
+```
+
+## CAGGDP9 Real GDP in Chained Dollars
+
+### All Industry total (1)
+
+```{r}
+gdp1 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAGDP9", 
+  "LineCode" = 1,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+gdp1 <- beaGet(gdp1, asWide = FALSE)
+```
+
+```{r}
+is_in_appalachia <- lapply(gdp1$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+gdp1.1 <- gdp1[unlist(is_in_appalachia), ]
+```
+
+### Mining, quarrying, and oil and gas extraction (6)
+
+```{r}
+gdp6 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAGDP9", 
+  "LineCode" = 6,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+gdp6 <- beaGet(gdp6, asWide = FALSE)
+
+is_in_appalachia <- lapply(gdp6$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+gdp6.1 <- gdp6[unlist(is_in_appalachia), ]
+```
+
+### Natural resources and mining (87)
+
+```{r}
+gdp87 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAGDP9", 
+  "LineCode" = 87,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+gdp87 <- beaGet(gdp87, asWide = FALSE)
+
+is_in_appalachia <- lapply(gdp87$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+gdp87.1 <- gdp87[unlist(is_in_appalachia), ]
+```
+
+### GDP Merged
+
+```{r}
+# rename columns
+"AllIndustryGDP" -> colnames(gdp1)[7] 
+"AllIndustryGDP" -> colnames(gdp1.1)[7] 
+
+"extractionGDP" -> colnames(gdp6)[7] 
+"extractionGDP" -> colnames(gdp6.1)[7]
+
+"nat_resourceGDP" -> colnames(gdp87)[7]
+"nat_resourceGDP" -> colnames(gdp87.1)[7]
+```
+
+```{r}
+# Appalachia
+# Merge gdp1.1, gdp6.1, and gdp87.1 by GeoName and TimePeriod
+merged_gdp.1 <- merge(gdp1.1, gdp6.1, by = c("GeoName", "TimePeriod"))
+merged_gdp.1 <- merge(merged_gdp.1, gdp87.1, by = c("GeoName", "TimePeriod"))
+
+merged_gdp.1 <- merged_gdp.1[, c("GeoName", "TimePeriod", "AllIndustryGDP", "extractionGDP", "nat_resourceGDP")
+]
+```
+
+```{r}
+# US total
+# Merge gdp1, gdp6, and gdp87 by GeoName and TimePeriod
+merged_gdp <- merge(gdp1, gdp6, by = c("GeoName", "TimePeriod"))
+merged_gdp <- merge(merged_gdp, gdp87, by = c("GeoName", "TimePeriod"))
+
+merged_gdp <- merged_gdp[, c("GeoName", "TimePeriod", "AllIndustryGDP", "extractionGDP", "nat_resourceGDP")
+]
+```
+
+```{r}
+# we can remove all former dataframes to keep the environment clean
+# merged_gdp / merged_gdp.1 datasets currently contain all counties for county-level analysis or GIS mapping
+
+rm(gdp1, gdp1.1, gdp6, gdp6.1, gdp87, gdp87.1)
+```
+
+Now there are two datasets containing GDP data: one for all counties in the US and one for Appalachian counties only.
+
+We can further filter our data:
+
+I want to remove Appalachian counties from the total US data frame so GDP calculations can accurately measure the impact of Appalachia to extraction and natural resource GDP.
+
+```{r}
+merged_gdp_filtered <- merged_gdp %>%
+  filter(!GeoName %in% unlist(appalachia))
+```
+
+### Calculations
+
+```{r}
+# percent of GDP in exctraction of oil and gas/mining Appalachia
+sum(merged_gdp.1$extractionGDP[merged_gdp.1$TimePeriod == 2021]) /
+sum(merged_gdp.1$AllIndustryGDP[merged_gdp.1$TimePeriod == 2021])
+```
+
+```{r}
+# percent of GDP in exctraction of oil and gas/mining US
+sum(merged_gdp$extractionGDP[merged_gdp$TimePeriod == 2021]) /
+sum(merged_gdp$AllIndustryGDP[merged_gdp$TimePeriod == 2021])
+```
+
+```{r}
+# percent of GDP in exctraction of oil and gas/mining Appalachia
+sum(merged_gdp.1$nat_resourceGDP[merged_gdp.1$TimePeriod == 2021]) /
+sum(merged_gdp.1$AllIndustryGDP[merged_gdp.1$TimePeriod == 2021])
+
+# percent of GDP in exctraction of oil and gas/mining US
+sum(merged_gdp$nat_resourceGDP[merged_gdp$TimePeriod == 2021]) /
+sum(merged_gdp$AllIndustryGDP[merged_gdp$TimePeriod == 2021])
+```
+
+```{r}
+# extraction + natural resources
+# Appalachia
+(sum(merged_gdp.1$nat_resourceGDP[merged_gdp.1$TimePeriod == 2021]) + sum(merged_gdp.1$extractionGDP[merged_gdp.1$TimePeriod == 2021])) /
+sum(merged_gdp.1$AllIndustryGDP[merged_gdp.1$TimePeriod == 2021])
+
+
+(sum(merged_gdp$nat_resourceGDP[merged_gdp$TimePeriod == 2021]) + sum(merged_gdp$extractionGDP[merged_gdp$TimePeriod == 2021])) /
+sum(merged_gdp$AllIndustryGDP[merged_gdp$TimePeriod == 2021])
+```
+
+```{r}
+# percentage of natural resources and extraction GDP to total US GDP in those industries
+(sum(merged_gdp.1$nat_resourceGDP[merged_gdp.1$TimePeriod == 2021]) + sum(merged_gdp.1$extractionGDP[merged_gdp.1$TimePeriod == 2021])) /
+(sum(merged_gdp$nat_resourceGDP[merged_gdp$TimePeriod == 2021]) + sum(merged_gdp$extractionGDP[merged_gdp$TimePeriod == 2021]))
+
+
+(sum(merged_gdp_filtered$nat_resourceGDP[merged_gdp_filtered$TimePeriod == 2021]) + sum(merged_gdp_filtered$extractionGDP[merged_gdp_filtered$TimePeriod == 2021])) /
+(sum(merged_gdp$nat_resourceGDP[merged_gdp$TimePeriod == 2021]) + sum(merged_gdp$extractionGDP[merged_gdp$TimePeriod == 2021]))
+
+
+
+```
+
+## CAINC30 Economic Profile
+
+### Population (100)
+
+```{r}
+ep100 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC30", 
+  "LineCode" = 100,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+ep100 <- beaGet(ep100, asWide = FALSE)
+
+is_in_appalachia <- lapply(ep100$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+ep100.1 <- ep100[unlist(is_in_appalachia), ]
+```
+
+### Total Employment (240)
+
+```{r}
+ep240 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC30", 
+  "LineCode" = 240,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+ep240 <- beaGet(ep240, asWide = FALSE)
+
+is_in_appalachia <- lapply(ep240$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+ep240.1 <- ep240[unlist(is_in_appalachia), ]
+```
+
+### Personal Income (10)
+
+```{r}
+ep10 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC30", 
+  "LineCode" = 10,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+ep10 <- beaGet(ep10, asWide = FALSE)
+
+is_in_appalachia <- lapply(ep10$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+ep10.1 <- ep10[unlist(is_in_appalachia), ]
+```
+
+### Economic Profile Merged
+
+```{r}
+# rename columns
+"population" -> colnames(ep100)[7] 
+"population" -> colnames(ep100.1)[7] 
+
+"total_employment" -> colnames(ep240)[7] 
+"total_employment" -> colnames(ep240.1)[7]
+
+"personal_income" -> colnames(ep10)[7]
+"personal_income" -> colnames(ep10.1)[7]
+```
+
+```{r}
+# Appalachia
+# Merge gdp1.1, gdp6.1, and gdp87.1 by GeoName and TimePeriod
+merged_ep.1 <- merge(ep100.1, ep240.1, by = c("GeoName", "TimePeriod"))
+merged_ep.1 <- merge(merged_ep.1, ep10.1, by = c("GeoName", "TimePeriod"))
+
+merged_ep.1 <- merged_ep.1[, c("GeoName", "TimePeriod", "population", "total_employment", "personal_income")
+]
+```
+
+```{r}
+# US
+merged_ep <- merge(ep100, ep240, by = c("GeoName", "TimePeriod"))
+merged_ep <- merge(merged_ep, ep10, by = c("GeoName", "TimePeriod"))
+
+merged_ep <- merged_ep[, c("GeoName", "TimePeriod", "population", "total_employment", "personal_income")
+]
+
+# US less Appalachian counties
+merged_ep_filtered <- merged_ep %>%
+  filter(!GeoName %in% unlist(appalachia))
+```
+
+```{r}
+rm(ep10, ep10.1, ep100, ep100.1, ep240, ep240.1)
+```
+
+## CAINC6N Compensation by employees by NAICS Industry
+
+### Oil and gas extraction (201)
+
+```{r}
+compensation201 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC6N", 
+  "LineCode" = 201,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+compensation201 <- beaGet(compensation201, asWide = FALSE)
+
+is_in_appalachia <- lapply(compensation201$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+compensation201.1 <- compensation201[unlist(is_in_appalachia), ]
+```
+
+### Petroleum and coal products manufacturing (539)
+
+```{r}
+compensation539 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC6N", 
+  "LineCode" = 539,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+compensation539 <- beaGet(compensation539, asWide = FALSE)
+
+is_in_appalachia <- lapply(compensation539$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+compensation539.1 <- compensation539[unlist(is_in_appalachia), ]
+```
+
+### Pipeline transportation (806)
+
+```{r}
+compensation806 <- list(
+  "UserID" = beaKey, 
+  "Method" = "GetData", 
+  "datasetname" = "Regional", 
+  "TableName" = "CAINC6N", 
+  "LineCode" = 806,  
+  "GeoFips" = "COUNTY",
+  "Year" = "LAST5"
+)
+
+compensation806 <- beaGet(compensation806, asWide = FALSE)
+
+is_in_appalachia <- lapply(compensation806$GeoName, function(county) {
+  any(county %in% unlist(appalachia))
+})
+
+# Subset your dataset to include only the desired counties
+compensation806.1 <- compensation806[unlist(is_in_appalachia), ]
+```
+
+### Compensation Merged
+
+```{r}
+# rename columns
+"oil_gas" -> colnames(compensation201)[7] 
+"oil_gas" -> colnames(compensation201.1)[7] 
+
+"petro_manufacturing" -> colnames(compensation539)[7] 
+"petro_manufacturing" -> colnames(compensation539.1)[7]
+
+"pipeline_transport" -> colnames(compensation806)[7]
+"pipeline_transport" -> colnames(compensation806.1)[7]
+```
+
+```{r}
+# Appalachia
+merged_comp.1 <- merge(compensation201.1, compensation539.1, by = c("GeoName", "TimePeriod"))
+merged_comp.1 <- merge(merged_comp.1, compensation806.1, by = c("GeoName", "TimePeriod"))
+
+merged_comp.1 <- merged_comp.1[, c("GeoName", "TimePeriod", "oil_gas", "petro_manufacturing", "pipeline_transport")
+]
+
+```
+
+```{r}
+# US
+merged_comp <- merge(compensation201, compensation539, by = c("GeoName", "TimePeriod"))
+merged_comp <- merge(merged_comp, compensation806, by = c("GeoName", "TimePeriod"))
+
+merged_comp <- merged_comp[, c("GeoName", "TimePeriod", "oil_gas", "petro_manufacturing", "pipeline_transport")
+]
+
+# US less Appalachian counties
+merged_comp_filtered <- merged_comp %>%
+  filter(!GeoName %in% unlist(appalachia))
+```
+
+```{r}
+rm(compensation201, compensation201.1, compensation539, compensation539.1, compensation806, compensation806.1)
+```
+
+## Merging All
+
+The ultimate goal is to have one data frame containing all the measures that were pulled from the BEA site using bea.R.
+
+```{r}
+# for all US counties
+US <-  merge(merged_comp, merged_gdp, by = c("GeoName", "TimePeriod"))
+US <- merge(US, merged_ep, by = c("GeoName", "TimePeriod"))
+```
+
+```{r}
+# for Appalachian counties
+app <-  merge(merged_comp.1, merged_gdp.1, by = c("GeoName", "TimePeriod"))
+app <- merge(app, merged_ep.1, by = c("GeoName", "TimePeriod"))
+```
+
+```{r}
+# for US counties NOT including Appalachia
+filtered <-  merge(merged_comp_filtered, merged_gdp_filtered, by = c("GeoName", "TimePeriod"))
+filtered <- merge(filtered, merged_ep_filtered, by = c("GeoName", "TimePeriod"))
+```
+
+Now we have three data frames:
+
+1.  'app' contains data for Appalachian counties
+2.  'US' contains data for all US counties (with available data)
+3.  'filtered' contains data for US counties NOT including Appalachian counties
+
+all for the last 5 years of available data, 2017-2021.
+
+```{r}
+# we can remove the separate data frames since we have merged them
+rm(merged_comp, merged_comp.1, merged_comp_filtered, merged_ep, merged_ep.1, merged_ep_filtered, merged_gdp, merged_gdp.1, merged_gdp_filtered)
+```
+
+## Download Datasets
+
+```{r}
+# since the wd is set already, the files will appear there. if a wd is not set, write the file path in the code
+
+write_csv(app, "app_data.csv")
+write_csv(US, "US_data.csv")
+write_csv(filtered, "filtered_data.csv")
+```
