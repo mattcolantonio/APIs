@@ -1,0 +1,103 @@
+---
+title: "censusapi"
+author: "Matt Colantonio"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+rm(list = ls()) 
+gc()
+cat("\f")
+```
+
+Loading the necessary packages
+
+```{r}
+library(tidyverse)
+library(readr)
+library(censusapi)
+library(tidycensus)
+```
+
+This dataset contains parcel data for the City of Pittsburgh. It includes which census tract and census block each parcel is in. I want to download some demographic, housing, and economic data from the American Community Survey (ACS) to add to my parcel dataset.
+
+```{r}
+parcel_data <- read.csv("/Users/matthewcolantonio/Documents/Research/condemned_properties/residential_properties_pgh.csv")
+```
+
+Now that the dataset is loaded in, I want to create a list of census blocks included so I can extract data for these blocks using the Census API.
+
+```{r}
+# creating list of unique census blocks
+unique_census_blocks <- unique(parcel_data$census_block)
+# Convert the unique census blocks to a list
+census_block_list <- as.list(unique_census_blocks)
+
+# creating a list of unique census tracts
+unique_census_tracts <- unique(parcel_data$census_tract)
+# Convert the unique census blocks to a list
+census_tract_list <- as.list(unique_census_tracts)
+
+```
+
+Now add your unique the Census API key.
+
+```{r include=FALSE}
+# Add key to .Renviron
+Sys.setenv(CENSUS_KEY="e8c3122e8584f0de407bfdd90c617f2213408ffe")
+# Reload .Renviron
+readRenviron("~/.Renviron")
+# Check to see that the expected key is output in your R console
+Sys.getenv("CENSUS_KEY")
+
+```
+
+```{r}
+# Variables and geography levels available in ACS 5-yr subject dataset as of 2021
+head(listCensusMetadata(name = "acs/acs5/subject", vintage = 2021, type = "variables"))
+head(listCensusMetadata(name = "acs/acs5/subject", vintage = 2021, type = "geography"))
+
+head(listCensusMetadata(name = "acs/acs5/profile", vintage = 2021, type = "variables"))
+head(listCensusMetadata(name = "acs/acs5/profile", vintage = 2021, type = "geography"))
+```
+
+```{r message=FALSE, warning=FALSE}
+
+# Set your Census API key
+census_api_key("e8c3122e8584f0de407bfdd90c617f2213408ffe")
+
+# Define the variables you want to retrieve from the Economic Characteristics dataset
+variables <- c("DP03_0002E", "DP03_0003E", "DP03_0004E", "DP03_0005E")
+
+# Set your desired year
+year <- 2019
+
+# Set the geography, which is 'tract' in this case
+geography <- "tract"
+
+# Specify the state and county (Allegheny, Pennsylvania)
+state <- "PA"
+county <- "Allegheny"
+
+# Filter the unique census tracts for Allegheny, Pennsylvania
+filtered_census_tracts <- unique_census_tracts  # Replace with your actual list of census tracts
+
+# Create an empty data frame to store the results
+economic_data <- data.frame()
+
+# Loop through the filtered census tracts and fetch data
+for (tract in filtered_census_tracts) {
+  data <- get_acs(geography = geography, variables = variables, 
+                  year = year, state = state, county = county, tract = tract)
+  
+  economic_data <- bind_rows(economic_data, data)
+}
+
+# Now, 'economic_data' contains the Economic Characteristics data for the specified census tracts in Allegheny, Pennsylvania
+
+```
+
+```{r}
+head(economic_data)
+```
