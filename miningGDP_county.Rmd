@@ -59,7 +59,7 @@ setwd("/Users/matthewcolantonio/Documents/Research/fracking/")
 ```
 
 ```{r}
-beaKey <-  "D84279EC-396F-4A6F-BE18-D9279CD3B1B0"
+beaKey <-  "YOUR KEY HERE"
 ```
 
 ```{r}
