@@ -45,7 +45,7 @@ Now add your unique the Census API key.
 
 ```{r include=FALSE}
 # Add key to .Renviron
-Sys.setenv(CENSUS_KEY="e8c3122e8584f0de407bfdd90c617f2213408ffe")
+Sys.setenv(CENSUS_KEY="YOUR KEY HERE")
 # Reload .Renviron
 readRenviron("~/.Renviron")
 # Check to see that the expected key is output in your R console
