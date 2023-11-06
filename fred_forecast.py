@@ -13,7 +13,7 @@ import plotly.express as px
 import fredapi as fd 
  
 # set up the connection with fred database via apl key
-fred=fd.Fred(api_key="35b8be6037f7722d989a3e1d2040bfd2")
+fred=fd.Fred(api_key="YOUR KEY HERE") # must first request an API key from FRED
 
 # extract data from FRED. This forecast is for PPI for Oil and Gas Extraction
 data = fred.search('Producer Price Index by Industry: Oil and Gas Extraction')
