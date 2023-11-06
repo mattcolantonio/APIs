@@ -64,7 +64,7 @@ setwd("/Users/matthewcolantonio/Documents/r/")
 First, create object with API key.
 
 ```{r include=FALSE}
-beaKey <-  "D84279EC-396F-4A6F-BE18-D9279CD3B1B0"
+beaKey <-  "YOUR KEY HERE" # you must request a key first
 ```
 
 What can we work with using the BEA API?
