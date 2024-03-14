@@ -65,7 +65,7 @@ head(listCensusMetadata(name = "acs/acs5/profile", vintage = 2021, type = "geogr
 ```{r message=FALSE, warning=FALSE}
 
 # Set your Census API key
-census_api_key("e8c3122e8584f0de407bfdd90c617f2213408ffe")
+census_api_key("YOUR KEY HERE")
 
 # Define the variables you want to retrieve from the Economic Characteristics dataset
 variables <- c("DP03_0002E", "DP03_0003E", "DP03_0004E", "DP03_0005E")
