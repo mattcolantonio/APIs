@@ -1,19 +1,20 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Sep  7 12:26:59 2023
 
-@author: matthewcolantonio
-"""
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.express as px
 import fredapi as fd 
- 
+import os
+from dotenv import load_dotenv
+from prophet import Prophet
+from prophet.diagnostics import cross_validation
+from prophet.plot import plot_cross_validation_metric
+load_dotenv()
+
+
 # set up the connection with fred database via apl key
-fred=fd.Fred(api_key="YOUR KEY HERE") # must first request an API key from FRED
+fred=fd.Fred(api_key=os.getenv('FRED_API_KEY')) # must first request an API key from FRED
 
 # extract data from FRED. This forecast is for PPI for Oil and Gas Extraction
 data = fred.search('Producer Price Index by Industry: Oil and Gas Extraction')
@@ -43,9 +44,6 @@ df2 = df2.rename(columns={'index': 'ds', 'values': 'y'})
 df2
 
 
-
-from prophet import Prophet
-
 ml=Prophet()
 ml.fit(df2)
 
@@ -61,14 +59,12 @@ fig2=ml.plot(result)
 fig3=ml.plot_components(result)
 
 # should also consider cross-validation in time series modelling
-import cross_validation.performance_metrics
+
 
 cv_results=cross_validation(model=ml, initial=pd.to_timedelta(30*20, unit='D'), period=pd.to_timedelta(30*5, unit='D'), horizon=pd.to_timedelta(30*12, unit='D'))
 
-import plot_cross_validation_metric
 
-fig4=plot_cross_validation_metric(cv_results, metric=rmse
-                                  
-                                  )
+
+fig4=plot_cross_validation_metric(cv_results, metric="rmse")
 
 
